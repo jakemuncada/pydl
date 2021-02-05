@@ -9,7 +9,7 @@ class LogSettings:
     """
 
     # The root logger.
-    _logger = logging.getLogger()
+    _rootLogger = logging.getLogger()
 
     # The handler that prints messages to the log file.
     _fileHandler = None
@@ -17,14 +17,20 @@ class LogSettings:
     # The handler that displays messages on the console.
     _consoleHandler = None
 
+    # The list of all loggers that this app uses.
+    LOGGERS = ['__main__', 'settings']
+
     @staticmethod
     def init():
         """
         Initialize the logger.
         """
-        LogSettings._logger.setLevel(logging.DEBUG)
-        logging.getLogger('urllib3').setLevel(logging.CRITICAL)
-        logging.getLogger('chardet').setLevel(logging.CRITICAL)
+        LogSettings._rootLogger.setLevel(logging.DEBUG)
+
+        # Manually set the library loggers level to WARNING
+        logging.getLogger('urllib3').setLevel(logging.WARNING)
+        logging.getLogger('chardet').setLevel(logging.WARNING)
+
         LogSettings._addFileHandler()
         LogSettings._addConsoleHandler()
 
@@ -66,7 +72,7 @@ class LogSettings:
         LogSettings._fileHandler = RotatingFileHandler('./logs/app.log', encoding='utf-8',
                                                        maxBytes=MAX_BYTES, backupCount=BACKUP_COUNT)
         LogSettings._fileHandler.setFormatter(formatter)
-        LogSettings._logger.addHandler(LogSettings._fileHandler)
+        LogSettings._rootLogger.addHandler(LogSettings._fileHandler)
 
     @staticmethod
     def _addConsoleHandler():
@@ -81,10 +87,10 @@ class LogSettings:
 
         # Don't print exception trace in console
         filter = logging.Filter()
-        filter.filter = lambda record: not record.exc_info
+        filter.filter = lambda record: record.name in LogSettings.LOGGERS and not record.exc_info
         LogSettings._consoleHandler.addFilter(filter)
 
         # Initially set level to INFO
         LogSettings._consoleHandler.setLevel(logging.INFO)
 
-        LogSettings._logger.addHandler(LogSettings._consoleHandler)
+        LogSettings._rootLogger.addHandler(LogSettings._consoleHandler)
