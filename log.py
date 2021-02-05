@@ -23,6 +23,8 @@ class LogSettings:
         Initialize the logger.
         """
         LogSettings._logger.setLevel(logging.DEBUG)
+        logging.getLogger('urllib3').setLevel(logging.CRITICAL)
+        logging.getLogger('chardet').setLevel(logging.CRITICAL)
         LogSettings._addFileHandler()
         LogSettings._addConsoleHandler()
 
