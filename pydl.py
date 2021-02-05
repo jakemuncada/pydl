@@ -25,10 +25,12 @@ def main():
 
     try:
         settings = Settings(sys.argv[1:])
-        logger.info(f'Starting task for {settings.mainUrl}...')
     except Exception as e:
         logger.error(f'{str(e)}\nUse -h or --help to display usage documentation.')
         logger.exception(e)
+        sys.exit(1)
+
+    logger.info(f'Starting task for {settings.mainUrl}...')
 
 
 if __name__ == '__main__':
