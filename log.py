@@ -18,7 +18,7 @@ class LogSettings:
     _consoleHandler = None
 
     # The list of all loggers that this app uses.
-    LOGGERS = ['__main__', 'settings']
+    LOGGERS = ['__main__', 'settings', 'pydlr']
 
     @staticmethod
     def init():
