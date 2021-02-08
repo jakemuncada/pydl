@@ -115,7 +115,7 @@ class PyDlr:
         for t in self._threads:
             t.join()
 
-    def join(self):
+    def wait(self):
         """
         Wait for all downloads to be finished.
         """
