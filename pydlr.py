@@ -35,8 +35,9 @@ class PyDlr:
     # INITIALIZATION
     ##################################################
 
-    def __init__(self, items=[], numThreads=1, callback=None):
+    def __init__(self, items=None, numThreads=1, callback=None):
         self.items = Queue()
+        items = items if items is not None else []
         [self.items.put(item) for item in items]
         self.callback = callback
 
