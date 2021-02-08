@@ -54,11 +54,7 @@ class Settings:
         while idx < len(args):
             arg = args[idx]
 
-            if arg == '-h' or arg == '--help':
-                self.isHelp = True
-                break
-
-            elif arg == '-p' or arg == '--producer':
+            if arg == '-p' or arg == '--producer':
                 val = args[idx + 1] if idx + 1 else None
                 self.producerCount = val
                 idx += 2

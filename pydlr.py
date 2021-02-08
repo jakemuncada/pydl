@@ -17,36 +17,28 @@ class PyDlr:
     Python Downloader.
 
     Attributes:
-        items (Queue of dict): The queue of items to be downloaded.
+        queue (:obj:`Queue` of :obj:`PyDlr.Item): The queue of items to be downloaded.
         callback (function): The default callback function that runs
             when a request has been concluded.
 
     Parameters:
-        items (Queue of dict): The queue of items to be downloaded.
+        items (:obj:`list` of :obj:`PyDlr.Item`): The queue of items to be downloaded.
         numThreads (int): The number of downloader threads to run.
         callback (function): The default callback function that runs
             when a request has been concluded.
     """
 
     ##################################################
-    # ITEM KEYS
-    ##################################################
-
-    ITEM_URL = 'url'
-    """The URL attribute key."""
-
-    ITEM_CALLBACK = 'callback'
-    """The callback attribute key."""
-
-    ##################################################
     # INITIALIZATION
     ##################################################
 
     def __init__(self, items=None, numThreads=1, callback=None):
-        self.items = Queue()
         items = items if items is not None else []
+
+        self.queue = Queue()
         for item in items:
-            self.items.put(item)
+            self.queue.put(item)
+
         self.callback = callback
 
         self._threads = []
@@ -56,8 +48,8 @@ class PyDlr:
         self._endEvent = threading.Event()
 
         for idx in range(1, numThreads + 1):
-            t = PyDlrThread(f'Thread{idx}', self.items, self.callback,
-                            self._killEvent, self._endEvent)
+            t = PyDlr.Thread(f'Thread{idx}', self.queue, self.callback,
+                             self._killEvent, self._endEvent)
             self._threads.append(t)
 
         # Logging...
@@ -79,10 +71,10 @@ class PyDlr:
             which runs when the download request has concluded.
 
         Parameters:
-            items (list of dict): The list of items to add to the download list.
+            items (:obj:`list` of :obj:`PyDlr.Item`): The list of items to add to the download list.
         """
         for item in items:
-            self.items.put(item)
+            self.queue.put(item)
 
     def setCallback(self, callback):
         """
@@ -121,66 +113,33 @@ class PyDlr:
         """
         self._endEvent.set()
 
-        while not self.items.empty():
+        while not self.queue.empty():
             time.sleep(0.300)
 
         for t in self._threads:
             t.join()
 
+    ##################################################
+    # STATIC METHODS
+    ##################################################
 
-##################################################
-# PyDlrThread
-##################################################
-
-class PyDlrThread(threading.Thread):
-    """
-    A custom Thread for PyDlr.
-
-    Parameters:
-        name (str): The name of the thread.
-        queue (Queue): The download queue.
-        callback (function): The default callback function that runs when a request
-            has been concluded.
-        killEvent (threading.Event): An event signifying that the thread should terminate
-            as soon as possible.
-        endEvent (threading.Event): An event signifying that the thread should terminate
-            once the queue is empty.
-    """
-
-    def __init__(self, name, queue, callback, killEvent, endEvent):
-        threading.Thread.__init__(self)
-        self.name = name
-        self.queue = queue
-        self.callback = callback
-        self.killEvent = killEvent
-        self.endEvent = endEvent
-
-    def run(self):
-        while not self.killEvent.is_set():
-            if not self.queue.empty():
-                item = self.queue.get()
-                self.processItem(item)
-                self.queue.task_done()
-            elif self.endEvent.is_set():
-                break
-
-    def processItem(self, item):
+    @staticmethod
+    def get(url):
         """
-        Download the item and pass the result to the callback.
+        Perform an HTTP GET request to the given URL.
 
         Parameters:
-            item (dict): The item to be processed.
-        """
+            url (str): The URL.
 
-        url = item.get(PyDlr.ITEM_URL, None)
-        if url is None:
-            logger.error('Error: item URL not found.')
-            return
+        Returns:
+            response (obj):  The requests library response.
+            failureReason (str, optional): The reason for the failure.
+                None if the result was successful.
+        """
 
         logger.debug('Downloading %s...', url)
 
         response = None
-        result = None
         failureReason = None
 
         try:
@@ -189,9 +148,7 @@ class PyDlrThread(threading.Thread):
             # Raise exception if any.
             response.raise_for_status()
             # If there were no exceptions, the download was successful.
-            logger.debug('Successfully downloaded %s.', url)
-            # Create successful result.
-            result = PyDlrResult.successfulResult(item, response)
+            logger.debug('Successfully downloaded %s', url)
         except requests.exceptions.HTTPError as err:
             failureReason = 'An HTTP error occurred.'
         except requests.exceptions.ProxyError as err:
@@ -221,116 +178,167 @@ class PyDlrThread(threading.Thread):
         except requests.exceptions.InvalidURL as err:
             failureReason = 'The URL provided was somehow invalid.'
         except Exception as err:  # pylint: disable=broad-except
-            failureReason = 'An error occurred.'
-            logger.exception(err)
+            failureReason = 'An unexpected error occurred.'
+            logger.exception('An unexpected error occurred while downloading %s, %s', url, err)
 
-        if result is None:
+        if failureReason is not None:
             logger.error('Failed to download %s... %s', url, failureReason)
-            result = PyDlrResult.failedResult(item, response, failureReason)
 
-        # Execute the callback
-        callback = self.getCallback(item)
-        if callback is not None:
-            callback(result)
-        else:
-            logger.warning('There is no callback for %s', url)
+        return response, failureReason
 
-    def getCallback(self, item):
+    ##################################################
+    # PYDLR ITEM CLASS
+    ##################################################
+
+    class Item:
         """
-        Returns the callback for the item.
-        If the item has an attribute called `callback`, it will be returned.
-        Otherwise, the default callback will be returned.
+        The item to be downloaded.
+
+        Attributes:
+            url (str): The URL from where the data will be downloaded from.
+            payload (dict, optional): Additional information of the item.
+            callback (function, optional): The item-specific callbak function that runs
+                when a request has been concluded.
+        """
+
+        def __init__(self, url, payload=None, callback=None):
+            self.url = url
+            self.payload = payload
+            self.callback = callback
+
+    ##################################################
+    # PYDLR RESULT CLASS
+    ##################################################
+
+    class Result:
+        """
+        The result of the download request.
+
+        Note:
+            Use the class methods `successfulResult` and `failedResult`
+            to initialize a new PyDlrResult.
+
+        Properties:
+            item (:obj:`PyDlr.Item`): The item that was requested.
+            response (obj): The requests library response.
+            isSuccess (bool): True if the result was a success. False if it was a failure.
+            failureReason (str): The reason for the failure. None if the result was a success.
+        """
+
+        @classmethod
+        def successfulResult(cls, item, response):
+            """
+            Instantiate a successful result.
+
+            Parameters:
+                item (:obj:`PyDlr.Item`): The download item that was requested.
+                response (obj): The requests library response.
+            """
+            return cls(True, item, response)
+
+        @classmethod
+        def failedResult(cls, item, response, failureReason):
+            """
+            Instantiate a failed result.
+
+            Parameters:
+                item (:obj:`PyDlr.Item`): The item that was requested.
+                response (obj): The requests library response.
+                failureReason (str): The reason for the failure.
+            """
+            return cls(False, item, response, failureReason)
+
+        def __init__(self, isSuccess, item, response, failureReason=None):
+            self.item = item
+            self.response = response
+            self.isSuccess = isSuccess
+            self.failureReason = failureReason
+
+        def getBytes(self):
+            """
+            Returns the response content in bytes.
+            """
+            if self.response is None:
+                return None
+            return self.response.content
+
+        def getText(self, encoding=None):
+            """
+            Returns the response content as plain text.
+
+            Parameters:
+                encoding (str, optional): The encoding of the plain text.
+                    If set to None, the encoding is inferred internally.
+            """
+            if self.response is None:
+                return None
+
+            if encoding is not None:
+                self.response.encoding = encoding
+            return self.response.text
+
+        def getJson(self):
+            """
+            Parses the response content as JSON and returns a dictionary.
+            """
+            if self.response is None:
+                return None
+            return self.response.json()
+
+    ##################################################
+    # PYDLR THREAD
+    ##################################################
+
+    class Thread(threading.Thread):
+        """
+        A custom Thread for PyDlr.
 
         Parameters:
-            item (dict): The item to be processed.
-
-        Returns:
-            function: The callback.
+            name (str): The name of the thread.
+            queue (Queue): The download queue.
+            defaultCallback (function): The default callback function that runs when a request
+                has been concluded.
+            killEvent (threading.Event): An event signifying that the thread should terminate
+                as soon as possible.
+            endEvent (threading.Event): An event signifying that the thread should terminate
+                once the queue is empty.
         """
-        # The callback will either be the specific callback of the item
-        callback = item.get(PyDlr.ITEM_CALLBACK, None)
-        if callback is None:
-            # Or the default success callback
-            callback = self.callback
-        return callback
 
+        def __init__(self, name, queue, defaultCallback, killEvent, endEvent):
+            threading.Thread.__init__(self)
+            self.name = name
+            self.queue = queue
+            self.defaultCallback = defaultCallback
+            self.killEvent = killEvent
+            self.endEvent = endEvent
 
-##################################################
-# PyDlrResult
-##################################################
+        def run(self):
+            while not self.killEvent.is_set():
+                if not self.queue.empty():
+                    item = self.queue.get()
+                    self.processItem(item)
+                    self.queue.task_done()
+                elif self.endEvent.is_set():
+                    break
 
-class PyDlrResult:
-    """
-    The result of the download request.
+        def processItem(self, item):
+            """
+            Download the item and pass the result to the callback.
 
-    Note:
-        Use the class methods `successfulResult` and `failedResult` to initialize a new PyDlrResult.
+            Parameters:
+                item (:obj:`PyDlr.Item`): The item to be processed.
+            """
 
-    Properties:
-        url (str): The URL of the item.
-        item (dict): The item that was requested.
-        response (obj): The requests library response. Can be None.
-        isSuccess (bool): True if the result was a success. False if it was a failure.
-        failureReason (str): The reason for the failure. None if the result was a success.
-    """
+            # Send the GET request
+            response, failureReason = PyDlr.get(item.url)
+            if response:
+                result = PyDlr.Result.successfulResult(item, response)
+            else:
+                result = PyDlr.Result.failedResult(item, response, failureReason)
 
-    @classmethod
-    def successfulResult(cls, item, response):
-        """
-        Instantiate a successful result.
-
-        Parameters:
-            item (dict): The item that was requested.
-            response (obj): The requests library response. Can be None.
-        """
-        return cls(True, item, response)
-
-    @classmethod
-    def failedResult(cls, item, response, failureReason):
-        """
-        Instantiate a failed result.
-
-        Parameters:
-            item (dict): The item that was requested.
-            response (obj): The requests library response. Can be None.
-            failureReason (str): The reason for the failure.
-        """
-        return cls(False, item, response, failureReason)
-
-    def __init__(self, isSuccess, item, response, failureReason=None):
-        self.url = item[PyDlr.ITEM_URL]
-        self.item = item
-        self.response = response
-        self.isSuccess = isSuccess
-        self.failureReason = failureReason
-
-    def getBytes(self):
-        """
-        Returns the response content in bytes.
-        """
-        if self.response is None:
-            return None
-        return self.response.content
-
-    def getText(self, encoding=None):
-        """
-        Returns the response content as plain text.
-
-        Parameters:
-            encoding (str, optional): The encoding of the plain text.
-                If set to None, the encoding is inferred internally.
-        """
-        if self.response is None:
-            return None
-
-        if encoding is not None:
-            self.response.encoding = encoding
-        return self.response.text
-
-    def getJson(self):
-        """
-        Parses the response content as JSON and returns a dictionary.
-        """
-        if self.response is None:
-            return None
-        return self.response.json()
+            # Execute the callback
+            callback = item.callback if item.callback is not None else self.defaultCallback
+            if callback is not None:
+                callback(result)
+            else:
+                logger.warning('There is no callback for %s', item.url)
