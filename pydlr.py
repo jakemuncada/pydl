@@ -1,8 +1,13 @@
+"""
+Provides high-level support for sending several HTTP requests.
+"""
+
+from queue import Queue
 import time
 import logging
-import requests
 import threading
-from queue import Queue
+import requests
+
 
 logger = logging.getLogger(__name__)
 
@@ -13,12 +18,14 @@ class PyDlr:
 
     Attributes:
         items (Queue of dict): The queue of items to be downloaded.
-        callback (function): The default callback function that runs when a request has been concluded.
+        callback (function): The default callback function that runs
+            when a request has been concluded.
 
     Parameters:
         items (Queue of dict): The queue of items to be downloaded.
         numThreads (int): The number of downloader threads to run.
-        callback (function): The default callback function that runs when a request has been concluded.
+        callback (function): The default callback function that runs
+            when a request has been concluded.
     """
 
     ##################################################
@@ -38,15 +45,19 @@ class PyDlr:
     def __init__(self, items=None, numThreads=1, callback=None):
         self.items = Queue()
         items = items if items is not None else []
-        [self.items.put(item) for item in items]
+        for item in items:
+            self.items.put(item)
         self.callback = callback
 
         self._threads = []
-        self._killEvent = threading.Event()  # If set, the threads will terminate as soon as possible
-        self._endEvent = threading.Event()  # If set, the threads will terminate once the queue is empty
+        # If set, the threads will terminate as soon as possible
+        self._killEvent = threading.Event()
+        # If set, the threads will terminate once the queue is empty
+        self._endEvent = threading.Event()
 
         for idx in range(1, numThreads + 1):
-            t = PyDlrThread(f'Thread{idx}', self.items, self.callback, self._killEvent, self._endEvent)
+            t = PyDlrThread(f'Thread{idx}', self.items, self.callback,
+                            self._killEvent, self._endEvent)
             self._threads.append(t)
 
         # Logging...
@@ -70,7 +81,8 @@ class PyDlr:
         Parameters:
             items (list of dict): The list of items to add to the download list.
         """
-        [self.items.put(item) for item in items]
+        for item in items:
+            self.items.put(item)
 
     def setCallback(self, callback):
         """
@@ -90,7 +102,7 @@ class PyDlr:
         """
         Start all the threads.
         """
-        logger.info(f'Starting downloads with {len(self._threads)} threads.')
+        logger.info('Starting downloads with %d threads.', len(self._threads))
         for t in self._threads:
             t.start()
 
@@ -126,30 +138,33 @@ class PyDlrThread(threading.Thread):
 
     Parameters:
         name (str): The name of the thread.
-        dq (Queue): The download queue.
-        callback (function): The default callback function that runs when a request has been concluded.
-        killEvent (threading.Event): An event signifying that the thread should terminate as soon as possible.
-        endEvent (threading.Event): An event signifying that the thread should terminate once the queue is empty.
+        queue (Queue): The download queue.
+        callback (function): The default callback function that runs when a request
+            has been concluded.
+        killEvent (threading.Event): An event signifying that the thread should terminate
+            as soon as possible.
+        endEvent (threading.Event): An event signifying that the thread should terminate
+            once the queue is empty.
     """
 
-    def __init__(self, name, dq, callback, killEvent, endEvent):
+    def __init__(self, name, queue, callback, killEvent, endEvent):
         threading.Thread.__init__(self)
         self.name = name
-        self.dq = dq
+        self.queue = queue
         self.callback = callback
         self.killEvent = killEvent
         self.endEvent = endEvent
 
     def run(self):
         while not self.killEvent.is_set():
-            if not self.dq.empty():
-                item = self.dq.get()
+            if not self.queue.empty():
+                item = self.queue.get()
                 self.processItem(item)
-                self.dq.task_done()
+                self.queue.task_done()
             elif self.endEvent.is_set():
                 break
 
-    def processItem(self, item):
+    def processItem(self, item):  # pylint: disable=too-many-branches,too-many-statements
         """
         Download the item and pass the result to the callback.
 
@@ -158,79 +173,67 @@ class PyDlrThread(threading.Thread):
         """
 
         url = item.get(PyDlr.ITEM_URL, None)
-
-        if url is not None:
-            logger.debug(f'Downloading {url}...')
-
-            response = None
-            result = None
-            failureReason = None
-
-            # Fetch the data
-            try:
-                response = requests.get(url)
-                response.raise_for_status()
-                logger.debug(f'Successfully downloaded {url}.')
-                result = PyDlrResult.successfulResult(item, response)
-            except requests.exceptions.HTTPError as err:
-                failureReason = 'An HTTP error occurred.'
-                logger.exception(err)
-            except requests.exceptions.ProxyError as err:
-                failureReason = 'A proxy error occurred.'
-                logger.exception(err)
-            except requests.exceptions.SSLError as err:
-                failureReason = 'An SSL error occurred.'
-                logger.exception(err)
-            except requests.exceptions.ConnectTimeout as err:
-                failureReason = 'The request timed out while trying to connect to the remote server.'
-                logger.exception(err)
-            except requests.exceptions.ReadTimeout as err:
-                failureReason = 'The server did not send any data in the allotted amount of time.'
-                logger.exception(err)
-            except requests.exceptions.Timeout as err:
-                failureReason = 'The request timed out.'
-                logger.exception(err)
-            except requests.exceptions.ConnectionError as err:
-                failureReason = 'A Connection error occurred.'
-                logger.exception(err)
-            except requests.exceptions.URLRequired as err:
-                failureReason = 'A valid URL is required to make a request.'
-                logger.exception(err)
-            except requests.exceptions.TooManyRedirects as err:
-                failureReason = 'Too many redirects.'
-                logger.exception(err)
-            except requests.exceptions.MissingSchema as err:
-                failureReason = 'The URL schema (e.g. http or https) is missing.'
-                logger.exception(err)
-            except requests.exceptions.InvalidSchema as err:
-                failureReason = 'The URL schema is invalid.'
-                logger.exception(err)
-            except requests.exceptions.InvalidHeader as err:
-                failureReason = 'The header value provided was somehow invalid.'
-                logger.exception(err)
-            except requests.exceptions.InvalidProxyURL as err:
-                failureReason = 'The proxy URL provided is invalid.'
-                logger.exception(err)
-            except requests.exceptions.InvalidURL as err:
-                failureReason = 'The URL provided was somehow invalid.'
-                logger.exception(err)
-            except Exception as err:
-                failureReason = 'An error occurred.'
-                logger.exception(err)
-
-            if result is None:
-                logger.error(f'Failed to download {url}... {failureReason}')
-                result = PyDlrResult.failedResult(item, response, failureReason)
-
-            # Execute the callback
-            callback = self.getCallback(item)
-            if callback is not None:
-                callback(result)
-            else:
-                logger.warning(f'There is no callback for {url}.')
-
-        else:
+        if url is None:
             logger.error('Error: item URL not found.')
+            return
+
+        logger.debug('Downloading %s...', url)
+
+        response = None
+        result = None
+        failureReason = None
+
+        try:
+            # Fetch the data.
+            response = requests.get(url)
+            # Raise exception if any.
+            response.raise_for_status()
+            # If there were no exceptions, the download was successful.
+            logger.debug('Successfully downloaded %s.', url)
+            # Create successful result.
+            result = PyDlrResult.successfulResult(item, response)
+        except requests.exceptions.HTTPError as err:
+            failureReason = 'An HTTP error occurred.'
+        except requests.exceptions.ProxyError as err:
+            failureReason = 'A proxy error occurred.'
+        except requests.exceptions.SSLError as err:
+            failureReason = 'An SSL error occurred.'
+        except requests.exceptions.ConnectTimeout as err:
+            failureReason = 'The request timed out while trying to connect to the remote server.'
+        except requests.exceptions.ReadTimeout as err:
+            failureReason = 'The server did not send any data in the allotted amount of time.'
+        except requests.exceptions.Timeout as err:
+            failureReason = 'The request timed out.'
+        except requests.exceptions.ConnectionError as err:
+            failureReason = 'A Connection error occurred.'
+        except requests.exceptions.URLRequired as err:
+            failureReason = 'A valid URL is required to make a request.'
+        except requests.exceptions.TooManyRedirects as err:
+            failureReason = 'Too many redirects.'
+        except requests.exceptions.MissingSchema as err:
+            failureReason = 'The URL schema (e.g. http or https) is missing.'
+        except requests.exceptions.InvalidSchema as err:
+            failureReason = 'The URL schema is invalid.'
+        except requests.exceptions.InvalidHeader as err:
+            failureReason = 'The header value provided was somehow invalid.'
+        except requests.exceptions.InvalidProxyURL as err:
+            failureReason = 'The proxy URL provided is invalid.'
+        except requests.exceptions.InvalidURL as err:
+            failureReason = 'The URL provided was somehow invalid.'
+        except Exception as err:  # pylint: disable=broad-except
+            failureReason = 'An error occurred.'
+            logger.exception(err)
+
+        if result is None:
+            logger.error('Failed to download %s... %s', url, failureReason)
+            result = PyDlrResult.failedResult(item, response, failureReason)
+
+        # Execute the callback
+        callback = self.getCallback(item)
+        if callback is not None:
+            callback(result)
+        else:
+            logger.warning('There is no callback for %s', url)
 
     def getCallback(self, item):
         """

@@ -1,3 +1,7 @@
+"""
+Provides support for parsing the settings from the command line arguments.
+"""
+
 import sys
 import logging
 
@@ -16,17 +20,18 @@ class Settings:
 
     Attributes:
         mainUrl (str): The main URL.
-        producerCount (int): The number of producer threads. Producer threads load the page HTML and add the 
-            image URLs to the download list.
-        downloaderCount (int): The number of downloader threads. Downloader threads get a URL from the download list,
-            downloads it, and saves it to storage.
-        isVerbose (bool): If true, verbose mode is enabled, meaning that DEBUG level messages will also be displayed
-            on the console. If false, only INFO and above messages will be displayed on the console.
+        producerCount (int): The number of producer threads. Producer threads load the page HTML
+            and add the image URLs to the download list.
+        downloaderCount (int): The number of downloader threads. Downloader threads get a URL
+            from the download list, downloads it, and saves it to storage.
+        isVerbose (bool): If true, verbose mode is enabled, meaning that DEBUG level messages
+            will also be displayed on the console. If false, only INFO and above messages will be
+            displayed on the console.
     """
 
     def __init__(self, args):
 
-        logger.debug(f'Initializing settings with command line arguments: {" ".join(args)}')
+        logger.debug('Initializing settings with command line arguments: %s', " ".join(args))
 
         # Default Values
         self.mainUrl = None
@@ -96,8 +101,7 @@ class Settings:
 
         # Downloader Count
         if not self.downloaderCount.isnumeric():
-            raise TypeError(
-                'Producer count must be a positive integer from 1 to 12 (inclusive).')
+            raise TypeError('Producer count must be a positive integer from 1 to 12 (inclusive).')
         else:
             self.downloaderCount = int(self.downloaderCount)
             if self.downloaderCount < 1 or self.downloaderCount > 12:
@@ -109,26 +113,25 @@ class Settings:
         """
         Print the help documentation.
         """
+        x = []
+        x.append('')
+        x.append('Description: pydl is a python script that crawls a manhwa and downloads')
+        x.append('             its chapters to read offline.')
+        x.append('')
+        x.append('Author: Jake Randolph Muncada')
+        x.append('')
+        x.append('USAGE: python3 pydl.py <url> [args]')
+        x.append('where <url> is the URL of the page to crawl. *Required')
+        x.append('')
+        x.append('Args:')
+        x.append('   -d|--downloader <number>  Sets the number of downloader threads. This is the')
+        x.append('                             number of concurrent downloads. Must be a positive')
+        x.append('                             integer from 1 to 12. Defaults to 3 if not set.')
+        x.append('   -p|--producer <number>    Sets the number of producer threads.')
+        x.append('                             Producer threads load the chapter HTML and adds the')
+        x.append('                             image URLs to the download list. Must be a positive')
+        x.append('                             integer from 1 to 5. Defaults to 1 if not set.')
+        x.append('   -v|--verbose              Turn on verbose mode, which allows debug log')
+        x.append('                             messages to be displayed on the console.')
 
-        s = []
-        s.append('')
-        s.append('Description: pydl is a python script that crawls a manhwa and downloads')
-        s.append('             its chapters to read offline.')
-        s.append('')
-        s.append('Author: Jake Randolph Muncada')
-        s.append('')
-        s.append('USAGE: python3 pydl.py <url> [args]')
-        s.append('where <url> is the URL of the page to crawl. *Required')
-        s.append('')
-        s.append('Args:')
-        s.append('   -d|--downloader <number>   Sets the number of downloader threads. This is the number of')
-        s.append('                              concurrent downloads. Must be a positive integer from 1 to 12.')
-        s.append('                              Defaults to 3 if not set.')
-        s.append('   -p|--producer <number>     Sets the number of producer threads. Producer threads load the')
-        s.append('                              chapter HTML and adds the image URLs to the download list.')
-        s.append('                              Must be a positive integer from 1 to 5. Defaults to 1 if not set.')
-        s.append('   -v|--verbose               Turn on verbose mode, which allows debug log messages')
-        s.append('                              to be displayed on the console.')
-
-        logger.debug('Display help documentation.')
-        print('\n'.join(s))
+        print('\n'.join(x))
