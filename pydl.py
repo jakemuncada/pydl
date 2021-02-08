@@ -1,3 +1,7 @@
+"""
+Main entry for the download script.
+"""
+
 import os
 import sys
 import logging
@@ -22,19 +26,19 @@ def main():
 
     try:
         settings = Settings(sys.argv[1:])
-    except Exception as e:
-        logger.error(f'{str(e)}\nUse -h or --help to display usage documentation.')
-        logger.exception(e)
+    except (ValueError, TypeError, AttributeError) as err:
+        logger.error('%s\nUse -h or --help to display usage documentation.', err)
+        logger.exception(err)
         sys.exit(1)
 
-    logger.info(f'Starting task for {settings.mainUrl}...')
+    logger.info('Starting task for %s...', settings.mainUrl)
 
 
 if __name__ == '__main__':
     try:
         main()
-    except Exception as e:
-        logger.error(f'An unexpected error occurred. {str(e)}')
-        logger.exception(e)
+    except Exception as err:  # pylint: disable=broad-except
+        logger.error('An unexpected error occurred. %s', err)
+        logger.exception(err)
     finally:
         LogSettings.close()
