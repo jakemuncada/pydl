@@ -64,7 +64,7 @@ class PyDlr:
 
         Note:
             Each item in the list should contain an attribute called `url`.
-            An item could also optionally contain an attribute called `callback`, 
+            An item could also optionally contain an attribute called `callback`,
             which runs when the download request has concluded.
 
         Parameters:
@@ -164,6 +164,7 @@ class PyDlrThread(threading.Thread):
 
             response = None
             result = None
+            failureReason = None
 
             # Fetch the data
             try:
@@ -174,44 +175,44 @@ class PyDlrThread(threading.Thread):
             except requests.exceptions.HTTPError as err:
                 failureReason = 'An HTTP error occurred.'
                 logger.exception(err)
-            except requests.exceptions.ConnectionError as err:
-                failureReason = 'A Connection error occurred.'
-                logger.exception(err)
             except requests.exceptions.ProxyError as err:
                 failureReason = 'A proxy error occurred.'
                 logger.exception(err)
             except requests.exceptions.SSLError as err:
                 failureReason = 'An SSL error occurred.'
                 logger.exception(err)
+            except requests.exceptions.ConnectTimeout as err:
+                failureReason = 'The request timed out while trying to connect to the remote server.'
+                logger.exception(err)
+            except requests.exceptions.ReadTimeout as err:
+                failureReason = 'The server did not send any data in the allotted amount of time.'
+                logger.exception(err)
             except requests.exceptions.Timeout as err:
                 failureReason = 'The request timed out.'
                 logger.exception(err)
-            except requests.exceptions.ConnectTimeout:
-                failureReason = 'The request timed out while trying to connect to the remote server.'
+            except requests.exceptions.ConnectionError as err:
+                failureReason = 'A Connection error occurred.'
                 logger.exception(err)
-            except requests.exceptions.ReadTimeout:
-                failureReason = 'The server did not send any data in the allotted amount of time.'
-                logger.exception(err)
-            except requests.exceptions.URLRequired:
+            except requests.exceptions.URLRequired as err:
                 failureReason = 'A valid URL is required to make a request.'
                 logger.exception(err)
-            except requests.exceptions.TooManyRedirects:
+            except requests.exceptions.TooManyRedirects as err:
                 failureReason = 'Too many redirects.'
                 logger.exception(err)
-            except requests.exceptions.MissingSchema:
+            except requests.exceptions.MissingSchema as err:
                 failureReason = 'The URL schema (e.g. http or https) is missing.'
                 logger.exception(err)
-            except requests.exceptions.InvalidSchema:
+            except requests.exceptions.InvalidSchema as err:
                 failureReason = 'The URL schema is invalid.'
                 logger.exception(err)
-            except requests.exceptions.InvalidURL:
-                failureReason = 'The URL provided was somehow invalid.'
-                logger.exception(err)
-            except requests.exceptions.InvalidHeader:
+            except requests.exceptions.InvalidHeader as err:
                 failureReason = 'The header value provided was somehow invalid.'
                 logger.exception(err)
-            except requests.exceptions.InvalidProxyURL:
+            except requests.exceptions.InvalidProxyURL as err:
                 failureReason = 'The proxy URL provided is invalid.'
+                logger.exception(err)
+            except requests.exceptions.InvalidURL as err:
+                failureReason = 'The URL provided was somehow invalid.'
                 logger.exception(err)
             except Exception as err:
                 failureReason = 'An error occurred.'
