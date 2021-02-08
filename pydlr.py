@@ -164,7 +164,7 @@ class PyDlrThread(threading.Thread):
             elif self.endEvent.is_set():
                 break
 
-    def processItem(self, item):  # pylint: disable=too-many-branches,too-many-statements
+    def processItem(self, item):
         """
         Download the item and pass the result to the callback.
 
